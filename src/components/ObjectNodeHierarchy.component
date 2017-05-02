@@ -1,0 +1,284 @@
+<!------------------------------------------------------------
+Author:			Denise Bacher
+Company:		Salesforce Services
+Description:	Draws the hierarchy based on a list of ObjectNodes
+				custompopover (optional) - boolean to note if the VF page has defined a custom popover layout
+				fields (optional) - Schema.FieldSetMember[] fields to display on the popover
+
+Notes:			Assumes that the containing Visual Force page includes jQuery and SLDS
+				JS function: globalRegisterEvents - defined in the VF page, used to register events captured at the page level
+				to handle things like lazy loading additional data
+
+History:
+<Date>			<Authors Name>		<Brief Description of Change>
+12/01/2016		Denise Bacher		Initial Creation
+------------------------------------------------------------>
+<apex:component >
+	<apex:attribute name="custompopover" description="Bool to note if a custom popover has been defined" type="Boolean" default="false"/>
+	<apex:attribute name="fields" description="popover fields to display" type="Schema.FieldSetMember[]" required="false"/>
+	
+	<apex:includeScript value="{!URLFOR($Resource.assetHierarchyJavaScript, 'aljs/jquery.aljs-init.min.js')}"/>
+	<apex:includeScript value="{!URLFOR($Resource.assetHierarchyJavaScript, 'aljs/jquery.aljs-popover.min.js')}"/>
+	
+	<style>
+		.slds .slds-popover{
+			max-width: 80%;
+		}
+		
+		.adjustment {
+			margin-bottom: 5px;
+		}
+		
+		.slds-avatar{
+			line-height: 0 !important;
+		}
+	</style>
+	
+	<script>
+		$j = jQuery.noConflict();
+		
+		$j.aljsInit({
+			assetsLocation: '{!URLFOR($Resource.assetHierarchyJavaScript)}',
+			scoped: true
+		});
+		
+		var popoverFields = [
+			<apex:repeat var="f" value="{!fields}">
+				{
+					label: '{!f.label}',
+					api: '{!f.fieldPath}',
+					type: '{!f.type}'
+				},
+			</apex:repeat>
+		];
+	
+		var upArrowIcon = "{!URLFOR($Resource.assetHierarchyJavaScript, 'slds214/assets/icons/utility-sprite/svg/symbols.svg#arrowup')}";
+		var homeIcon = "{!URLFOR($Resource.assetHierarchyJavaScript, 'slds214/assets/icons/utility-sprite/svg/symbols.svg#home')}";
+		var checkinIcon = "{!URLFOR($Resource.assetHierarchyJavaScript, 'slds214/assets/icons/utility-sprite/svg/symbols.svg#checkin')}";
+		var rightChevronIcon = "{!URLFOR($Resource.assetHierarchyJavaScript, 'slds214/assets/icons/utility-sprite/svg/symbols.svg#chevronright')}";
+		var downChevronIcon = "{!URLFOR($Resource.assetHierarchyJavaScript, 'slds214/assets/icons/utility-sprite/svg/symbols.svg#chevrondown')}";
+		
+		// initial function called to  draw hierarchy from ObjectNode array, likely returned from a remoting callout
+		function drawTree(objectNodes){
+			var container = $j('#hierarchy').html('');
+			
+			for(var i = 0; i < objectNodes.length; i++){
+				container.append(createNode(objectNodes[i], i, new Array('0')));
+			}
+		}
+	
+		// generate the html for the current node
+		function createNode(node, branch, branchArray){
+			var ariaControl = 'tree' + branch + '-node' + branchArray.join('-');
+			
+			// create the li for the current node
+			var newNode = $j('<li role="treeitem" id="'+ariaControl+'" aria-level="'+ node.nodeLevel + '"></li>');
+			
+			// begin constructing the html that will be nested inside the li
+			var innerDiv = $j('<div class="slds-tree__item"></div>');
+			
+			// add the aljs popover attributes
+			if(node.nodeId != null){
+				$j(innerDiv).attr("data-aljs", "popover");
+				$j(innerDiv).attr("data-aljs-placement", "bottom");
+				$j(innerDiv).attr("title", node.nodeName);
+				
+				if({!custompopover}){
+					$j(innerDiv).attr("data-aljs-show", "aljs-"+node.nodeId);
+				}
+			}
+			
+			// if the current node has children that were not retrieved, create a different button so the primary page knows to load them
+			// the class is 'lazyLoad'
+			if(node.hasMissingChildren){
+				innerDiv.append('<button class="slds-button slds-button--icon-bare slds-m-right--x-small lazyLoad" aria-controls="'+ariaControl+'" data-objid="'+node.nodeId+'">'
+								+	'<svg aria-hidden="false" class="rightChevron slds-button__icon slds-button__icon--small">'
+								+		'<use xlink:href="' + rightChevronIcon +'"></use>'
+								+	'</svg>'
+								+	'<span class="slds-assistive-text">Toggle</span>'
+								+ '</button>');
+			}
+			// otherwise create a button, it will be disabled if this node has no children
+			else{
+				innerDiv.append('<button class="slds-button slds-button--icon-bare slds-m-right--x-small ' + (node.nodeChildren.length > 0 ? '' : 'slds-is-disabled') + '" aria-controls="'+ariaControl+'">'
+								+	'<svg aria-hidden="'+(node.nodeChildren.length > 0 ? 'false' : 'true')+'" class="' + (!node.defaultCollapsed ? 'downChevron' : 'rightChevron') +' slds-button__icon slds-button__icon--small">'
+								+		'<use xlink:href="' + (!node.defaultCollapsed ? downChevronIcon : rightChevronIcon) +'"></use>'
+								+	'</svg>'
+								+	'<span class="slds-assistive-text">Toggle</span>'
+								+ '</button>');
+			}
+			
+			// if this is the top most node in the hierarchy, add an icon to designate it
+			if(node.isTopNode){
+				innerDiv.append('<span class="slds-m-right--x-small">'
+								+	'<svg aria-hidden="false" class="home slds-button__icon slds-button__icon--small slds-icon-text-default">'
+								+		'<use xlink:href="' + homeIcon +'"></use>'
+								+	'</svg>'
+								+ '<span>');
+			}
+			
+			// if there's a nodeId, create a link, otherwise only display the name
+			if(node.nodeId != null){
+				// create a link to the SObject record represented by this node
+				var url = (typeof srcUp === 'function') ? ("javascript:srcUp('/" + node.nodeId + "')") : ("/" + node.nodeId + "\" target=\"_top");
+				var link = $j('<a href="'+url+'" tabindex="-1" role="presentation" class="slds-truncate">' + node.nodeName + '</a>');
+				innerDiv.append(link);
+			}
+			else{
+				innerDiv.append('<span tabindex="-1" role="presentation" class="slds-truncate">' + node.nodeName + '</span>');
+			}
+			
+			// if the current node is the record we are vieweing the hierarchy from, add an icon to designate it
+			if(node.isSelectedObject){
+				innerDiv.append('<span class="slds-m-left--x-small">'
+								+	'<svg aria-hidden="false" class="checkin slds-button__icon slds-button__icon--small slds-icon-text-default">'
+								+		'<use xlink:href="' + checkinIcon +'"></use>'
+								+	'</svg>'
+								+ '<span>');
+			}
+			
+			// add the innerDiv to the li
+			newNode.append(innerDiv);
+			
+			// if this node has children, loop through them to create the necessairy html
+			if(node.nodeChildren.length > 0){
+				var innerList = $j('<ul class="' + (!node.defaultCollapsed ? 'slds-is-expanded' : 'slds-is-collapsed') + '" role="group" aria-labelledby="'+ariaControl+'__label"></ul>');
+				for(var i = 0; i < node.nodeChildren.length; i++){
+					var newArray = branchArray.slice();
+					newArray.push(i);
+					innerList.append(createNode(node.nodeChildren[i], branch, newArray));
+				}
+				
+				newNode.append(innerList);
+			}
+			
+			// if the current node has a parent that is not visible (not in the object node array), add a link to navigate to that record
+			if(node.hasMissingParent){
+				var parentUrl = (typeof srcUp === 'function') ? ("javascript:srcUp('/" + node.nodeParentId + "')") : ("/" + node.nodeParentId + "\" target=\"_top");
+				newNode.prepend('<li role="treeitem" aria-level="'+ node.nodeLevel + '">'
+								+	'<div class="slds-tree__item">'
+								+		'<a href="'+parentUrl+'" tabindex="-1" role="presentation" class="slds-button slds-button--icon-bare slds-m-right--x-small">'
+								+			'<svg aria-hidden="false" class="upArrow slds-button__icon slds-button__icon--small slds-icon-text-default">'
+								+				'<use xlink:href="' + upArrowIcon +'"></use>'
+								+			'</svg>'
+								+		'</a>'
+								+	'</div>'
+								+'</li>');
+			}
+			
+			createPopover(node);
+			
+			return newNode;
+		}
+	
+		// register the button click events that will allow expand/collapse of branches of the hierarchy
+		function registerEvents(){
+			$j('li[role="treeitem"] > div.slds-tree__item > button.slds-button:not(.lazyLoad)').unbind ("click");
+			$j('li[role="treeitem"] > div.slds-tree__item > button.slds-button:not(.lazyLoad)').on("click", toggleTreeBranch);
+			$j('[data-aljs="popover"]').popover({
+				modifier: 'panel',
+				theme: ''
+			});
+			reOrientPopovers();
+		}
+	
+		function toggleTreeBranch(){
+			var ariaControls = $j(this).attr('aria-controls') + '__label';
+			var subList = $j('ul[aria-labelledby="'+ariaControls+'"]');
+			$j(subList).toggleClass('slds-is-collapsed');
+			$j(subList).toggleClass('slds-is-expanded');
+			var svg = $j(this).find('use');
+			if($j(svg).attr('xlink:href') == rightChevronIcon){
+				$j(svg).attr('xlink:href', downChevronIcon);
+			}
+			else{
+				$j(svg).attr('xlink:href', rightChevronIcon);
+			}
+			
+			reOrientPopovers();
+		}
+		
+		function createPopover(node){
+			var container = $j('#popoverDiv');
+			var existingPopover = $j('#aljs-'+node.sObj.Id);
+			
+			// only create popover if it doesn't already exist
+			if(existingPopover == null || existingPopover.length == 0){
+				var popoverHTML = $j('<div id="aljs-'+node.sObj.Id+'" class="slds-hide"></div>');
+				popoverHTML.append(
+						'<div class="slds-popover__header">'
+					+		'<div class="slds-media slds-media--center">'
+					+			'<span class="slds-text-heading--small">'+node.sObj.Name+'</span>'
+					+		'</div>'
+					+	'</div>'
+					+	'<div class="slds-popover__body slds-m-around--x-small">'
+					+		'<div class="slds-grid slds-wrap slds-grid--pull-padded">'
+					+		'</div>'
+					+	'</div>'
+				);
+				
+				for(var i = 0; i < popoverFields.length; i++){
+					var innerDiv = '<div class="slds-col--padded slds-size--1-of-1 slds-p-bottom--x-small">'
+						+'<dl>'
+						+	'<dt>'
+						+		'<span class="slds-text-heading--label slds-truncate">'+popoverFields[i].label+'</span>'
+						+	'</dt>'
+						+	'<dd>';
+				
+					if(node.sObj[popoverFields[i].api] !== undefined){
+						// lookup
+						if(popoverFields[i].type == 'reference'){
+							// create a link to the SObject record represented by this node
+							var url = (typeof srcUp === 'function') ? ("javascript:srcUp('/" + node.sObj[popoverFields[i].api] + "')") : ("/" + node.sObj[popoverFields[i].api] + "\" target=\"_top");
+							var labelAPI = popoverFields[i].api.endsWith('__c') ? popoverFields[i].api.replace('__c', '__r') : popoverFields[i].api.replace('Id', '');
+							innerDiv += '<a href="'+url+'" tabindex="-1" role="presentation" class="slds-truncate">' + node.sObj[labelAPI]['Name'] + '</a>';
+						}
+						// date or dateTime
+						else if(popoverFields[i].type == 'date' || popoverFields[i].type == 'datetime'){
+							var date = new Date(node.sObj[popoverFields[i].api]);
+							innerDiv += '<span>'+date.toLocaleDateString()+'</span>';
+						}
+						// checkbox
+						else if(popoverFields[i].type == 'boolean'){
+							innerDiv += '<input type="checkbox" disabled '+ (node.sObj[popoverFields[i].api] == true ? 'checked' : '') +'/>';
+						}
+						// treat all other types as a string
+						else{
+							innerDiv += '<span>'+node.sObj[popoverFields[i].api]+'</span>';
+						}
+					}
+					
+					innerDiv += '</dd></dl></div>';
+					popoverHTML.find(".slds-grid.slds-wrap.slds-grid--pull-padded").append(innerDiv);
+				}
+				
+				container.append(popoverHTML);
+			}
+		}
+		
+		function reOrientPopovers(){
+			var windowHeight = window.innerHeight;
+			$j('[data-aljs="popover"]').each(function(index){
+				var position = $j(this).position();
+				
+				if(position.top < (windowHeight - 250)){
+					$j(this).attr("data-aljs-placement", "bottom");
+				}
+				else{
+					$j(this).attr("data-aljs-placement", "top");
+				}
+			});
+		}
+	</script>
+	
+	<div class="slds-tree_container" role="application">
+		<ul id="hierarchy" class="slds-tree" role="tree" aria-labelledby="treeheading" aria-activedescendant="tree0-node0">
+			<!-- JQUERY WILL GENERATE HTML HERE -->
+		</ul>
+	</div>
+	
+	<div id="popoverDiv">
+		<!-- JQUERY WILL GENERATE POPOVER HTML HERE -->
+	</div>
+	
+</apex:component>

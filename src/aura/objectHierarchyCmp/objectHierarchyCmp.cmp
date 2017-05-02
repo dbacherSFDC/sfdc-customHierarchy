@@ -1,0 +1,13 @@
+<aura:component >
+	<aura:attribute name="objectNodeList" type="ObjectNode[]"/>
+	<aura:attribute name="displayPopover" type="Boolean" default="false"/>
+	<aura:attribute name="popoverFieldSetList" type="FieldSetMember[]"/>
+	
+	<div class="slds-tree_container" role="application">
+		<ul id="hierarchy" class="slds-tree" role="tree" aria-labelledby="treeheading" aria-activedescendant="tree0-node0">
+			<aura:iteration items="{!v.objectNodeList}" var="objectNode" indexVar="i">
+				<c:objectHierarchyNodeCmp node="{!objectNode}" treeIndex="{!i}" nodeIndex="0" popoverFieldSetList="{!v.popoverFieldSetList}" displayPopover="{!v.displayPopover}"/>
+			</aura:iteration>
+		</ul>
+	</div>
+</aura:component>

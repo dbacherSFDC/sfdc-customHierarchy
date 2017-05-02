@@ -1,0 +1,22 @@
+<aura:component controller="AssetHierarchyController" implements="force:appHostable,flexipage:availableForAllPageTypes,force:hasRecordId" access="global">
+	<aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+	<aura:handler name="loadChildren" event="c:objectHierarchyLoadChildrenEvt" action="{!c.loadChildNodes}"/>
+	
+	<aura:attribute name="recordId" type="Id"/>
+	<aura:attribute name="objectNodeList" type="ObjectNode[]"/>
+	<aura:attribute name="popoverFieldSetList" type="FieldSetMember"/>
+	
+	<div class="slds">
+		<div class="slds-page-header">
+			<div class="slds-grid">
+				<div class="slds-col slds-has-flexi-truncate">
+					<p class="slds-text-heading--label">Asset Hierarchy</p>
+				</div>
+			</div>
+		</div>
+		
+		<div id="notifications" class="slds-notify_container"/>
+		
+		<c:objectHierarchyCmp objectNodeList="{!v.objectNodeList}" popoverFieldSetList="{!v.popoverFieldSetList}" displayPopover="true" />
+	</div>
+</aura:component>

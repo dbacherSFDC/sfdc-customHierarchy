@@ -1,0 +1,30 @@
+<aura:component >
+	<aura:handler name="init" value="{!this}" action="{!c.doInit}" />
+	
+	<aura:attribute name="node" type="ObjectNode"/>
+	<aura:attribute name="popoverFieldSetList" type="FieldSetMember"/>
+	<aura:attribute name="values" type="Object[]"/>
+	
+	<div id="{!'aljs-' + v.node.sObj.Id}" class="slds-hide">
+		<div class="slds-popover__header">
+			<div class="slds-media slds-media--center">
+				<span class="slds-text-heading--small">{!v.node.sObj.Name}</span>
+			</div>
+		</div>
+		<div class="slds-popover__body slds-m-around--x-small">
+			<div class="slds-grid slds-wrap slds-grid--pull-padded">
+				<aura:iteration items="{!v.values}" var="item">
+					<dl>
+						<dt>
+							<span class="slds-text-heading--label slds-truncate">{!item.name}</span>
+						</dt>
+						<dd>
+							<span>{!item.value}</span>
+						</dd>
+					</dl>
+				</aura:iteration>
+			</div>
+		</div>
+	</div>
+	
+</aura:component>

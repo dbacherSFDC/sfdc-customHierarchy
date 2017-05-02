@@ -1,0 +1,47 @@
+<aura:component >
+	<aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+
+	<aura:registerEvent name="loadChildren" type="c:objectHierarchyLoadChildrenEvt"/>
+	
+	<aura:attribute name="node" type="ObjectNode"/>
+	<aura:attribute name="treeIndex" type="Integer"/>
+	<aura:attribute name="nodeIndex" type="Integer"/>
+	<aura:attribute name="ariaControl" type="String"/>
+	<aura:attribute name="popoverFieldSetList" type="FieldSetMember[]"/>
+    <aura:attribute name="displayPopover" type="Boolean" default="false"/>
+	
+	<li role="treeitem" id="{!v.ariaControl}" aria-level="{!v.node.nodeLevel}">
+		<div class="slds-tree__item" onmouseenter="{!c.handleMouseEnter}" onmouseleave="{!c.handleMouseLeave}">
+			<lightning:buttonIcon name="{!v.ariaControl + '__button'}" iconName="{!if(v.node.defaultCollapsed || v.node.hasMissingChildren, 'utility:chevronright', 'utility:chevrondown')}" 
+								  variant="bare" size="medium" alternativeText="toggle" onclick="{!c.toggleBranch}"
+								  class="{!if(v.node.nodeChildren.length > 0 || v.node.hasMissingChildren, '', 'slds-is-disabled ')}" />
+			
+			<aura:if isTrue="{!v.node.nodeId != null}">
+				<a href="{! '#/sObject/' + v.node.nodeId + '/view'}" tabindex="-1" role="presentation" class="slds-truncate" title="{!v.node.nodeName}"
+					data-refid="recordId" data-recordid="{!v.node.nodeId}">
+					{!v.node.nodeName}
+				</a>
+				<aura:set attribute="else">
+					<span tabindex="-1" role="presentation" class="slds-truncate">{!v.node.nodeName}</span>
+				</aura:set>
+			</aura:if>
+			<aura:if isTrue="{!v.node.isSelectedObject}">
+				<lightning:icon iconName="utility:checkin" size="xx-small" alternativeText="Indicates current object node."/>
+			</aura:if>
+		</div>
+			
+		<aura:if isTrue="{!v.node.nodeChildren.length > 0}">
+			<ul class="{!if(v.node.defaultCollapsed, 'slds-is-collapsed', 'slds-is-expanded')}" role="group" aria-labelledby="{!v.ariaControl + '__label'}">
+				<aura:iteration items="{!v.node.nodeChildren}" var="objectNode" indexVar="i">
+					<c:objectHierarchyNodeCmp node="{!objectNode}" treeIndex="{!v.treeIndex}" nodeIndex="{!i}" popoverFieldSetList="{!v.popoverFieldSetList}" displayPopover="{!v.displayPopover}"/>
+				</aura:iteration>
+			</ul>
+		</aura:if>
+	</li>
+	
+    <aura:if isTrue="{!v.displayPopover}">
+		<div aura:id="popover" >
+			<c:objectHierarchyNodePopoverCmp node="{!v.node}" popoverFieldSetList="{!v.popoverFieldSetList}"/>
+		</div>
+    </aura:if>
+</aura:component>

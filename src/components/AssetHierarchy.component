@@ -1,0 +1,148 @@
+<!------------------------------------------------------------
+Author:			Denise Bacher
+Company:		Salesforce Services
+Description:	Handles Javascript Remoting calls to display the Asset Hierarchy from an Asset, Account or Contact record
+				account (optional) - Account from primary page
+				contact (optional) - Contact from primary page
+				asset (optional) - Asset from primary page
+
+History:
+<Date>			<Authors Name>		<Brief Description of Change>
+12/01/2016		Denise Bacher		Initial Creation
+------------------------------------------------------------>
+<apex:component controller="AssetHierarchyController" >
+	<apex:attribute name="account" type="Account" description="Account from page" assignTo="{!accountObj}"/>
+	<apex:attribute name="contact" type="Contact" description="Contact from page" assignTo="{!contactObj}"/>
+	<apex:attribute name="asset" type="Asset" description="Asset from page" assignTo="{!assetObj}"/>
+	
+	<apex:includeScript value="{!URLFOR($Resource.assetHierarchyJavaScript, 'jquery/jquery-3.1.1.min.js')}"/>
+	<apex:includeScript value="{!URLFOR($Resource.assetHierarchyJavaScript, 'svg4everybody.js')}"/>
+	<apex:stylesheet value="{!URLFOR($Resource.assetHierarchyJavaScript, 'slds214/assets/styles/salesforce-lightning-design-system-vf.min.css')}"/>
+	<apex:stylesheet value="{!URLFOR($Resource.assetHierarchyJavaScript, 'slds214/assets/styles/salesforce-lightning-design-system-ltng.min.css')}"/>
+	
+	<style>
+		body {
+			margin: 0px !important;
+		}
+	</style>
+	
+	<script>
+		$j = jQuery.noConflict();
+		var accountId = '{!accountObj.Id}';
+		var contactId = '{!contactObj.Id}';
+		var assetRootAssetId = '{!assetObj.RootAssetId}';
+		var assetId = '{!assetObj.Id}';
+		
+		$j(document).ready(function() {
+			svg4everybody();
+			loadInitialAccounts();
+		});
+	
+		// register events that need to be handled at the page level
+		function globalRegisterEvents(){
+			$j('li[role="treeitem"] > div.slds-tree__item > button.slds-button.lazyLoad').unbind ("click");
+			$j('li[role="treeitem"] > div.slds-tree__item > button.slds-button.lazyLoad').on("click", lazyLoadChildAssets);
+		}
+		
+		// make the remote call out to retrieve the initial view of the hierarchy 
+		function loadInitialAccounts(){
+			Visualforce.remoting.Manager.invokeAction(
+				'{!$RemoteAction.AssetHierarchyController.loadInitialHierarchy}',
+				accountId,
+				contactId,
+				assetRootAssetId,
+				assetId, 
+				function(returnPayload, event){
+					//console.log(returnPayload);
+					var container = $j('#notifications').html('');
+					if(event.status){
+						drawTree(returnPayload);
+						registerEvents();
+						globalRegisterEvents();
+					}
+					else{
+						generateRemoteErrorMessaging(container, event);
+					}
+				},
+				{escape: true}
+			);
+		}
+	
+		// make the remote call out to retrieve the children from the selected account
+		function lazyLoadChildAssets(){
+			var currentContainer = $j(this).parents('li')[0];
+			
+			// get the node level and node id from the selected account
+			var currentLevel = $j(currentContainer).attr('aria-level');
+			var currentObjId = $j(this).data('objid');
+			
+			// parse out the branch number, and branch node array from the container's id
+			var idArray = $j(currentContainer).attr('id').split('-');
+			var branch = idArray[0].replace('tree', '');
+			idArray.shift();
+			var branchArray = new Array();
+			for(var i = 0; i < idArray.length; i++){
+				branchArray.push(idArray[i].replace('node', ''));
+			}
+			
+			Visualforce.remoting.Manager.invokeAction(
+				'{!$RemoteAction.AssetHierarchyController.lazyLoadChildAssets}',
+				currentLevel, 
+				currentObjId,
+				assetId,
+				function(returnPayload, event){
+					//console.log(returnPayload);
+					var container = $j('#notifications').html('');
+					if(event.status){
+						$j(currentContainer).replaceWith(createNode(returnPayload[0], branch, branchArray));
+						registerEvents();
+						globalRegisterEvents();
+					}
+					else{
+						generateRemoteErrorMessaging(container, event);
+					}
+				},
+				{escape: true}
+			);
+		}
+		
+		function generateRemoteErrorMessaging(container, event){
+			var errorIcon = "{!URLFOR($Resource.assetHierarchyJavaScript, '/assets/icons/utility-sprite/svg/symbols.svg#warning')}";
+			var newErrorBlock = $j('<div class="slds-notify slds-notify--alert slds-theme--error slds-theme--alert-texture" role="alert">'
+									+	'<span class="slds-assistive-text">Error</span>'
+									+		'<div class="notify__content slds-grid">'
+									+		'<svg aria-hidden="true" class="slds-icon slds-icon--small slds-m-right--small slds-col slds-no-flex">'
+									+			'<use xlink:href="' + errorIcon +'"></use>'
+									+		'</svg>'
+									+		'<div class="slds-col slds-align-middle">'
+									+			'<h2 class="slds-text-heading--small">'
+									+				event.message
+									+			'</h2>'
+									+		'</div>'
+									+	'</div>'
+									+'</div>'
+			);
+			
+			$j(container).html(newErrorBlock);
+		}
+	</script>
+	
+	<div class="assetHierarchy">
+		<div class="slds">
+			<div class="slds-page-header">
+				<div class="slds-grid">
+					<div class="slds-col slds-has-flexi-truncate">
+						<p class="slds-text-heading--label">Asset Hierarchy</p>
+					</div>
+				</div>
+			</div>
+			
+			<apex:messages id="messages" styleClass="slds-notify slds-notify--alert slds-theme--error slds-theme--alert-texture" />
+			<div id="notifications" class="slds-notify_container">
+			</div>
+			
+			<c:ObjectNodeHierarchy custompopover="true" fields="{!popoverFields}"/>
+		</div>
+	</div>
+	
+</apex:component>

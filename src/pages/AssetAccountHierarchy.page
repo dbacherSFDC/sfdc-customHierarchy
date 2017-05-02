@@ -1,0 +1,13 @@
+<!------------------------------------------------------------
+Author:			Denise Bacher
+Company:		Salesforce Services
+Description:	Displays the Asset Hierarchy for the current Account
+				Requires use of the AssetHierarchy component
+
+History:
+<Date>			<Authors Name>		<Brief Description of Change>
+12/01/2015		Denise Bacher		Initial Creation
+------------------------------------------------------------>
+<apex:page standardController="Account" tabStyle="Account" docType="html-5.0" standardStylesheets="false" showHeader="true" sidebar="false">
+	<c:AssetHierarchy account="{!account}"/>
+</apex:page>
